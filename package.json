@@ -1,0 +1,8 @@
+{
+  "name": "plaid-edge",
+  "private": true,
+  "scripts": {
+    "sync": "deno run --config scripts/deno.json --env-file=.env --allow-net --allow-env scripts/sync.ts",
+    "sync:notify": "deno run --config scripts/deno.json --env-file=.env --allow-net --allow-env scripts/sync.ts --notify"
+  }
+}
