@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { addDaysToIsoDate, WEEKLY_BUDGET } from './budget.ts';
-import { getWeekSpentFromDb } from './transaction-store.ts';
+import { getWeekSpentFromLedger } from './budget-ledger.ts';
 
 export type BudgetOutcome = 'under_budget' | 'over_budget' | 'on_budget';
 
@@ -71,7 +71,7 @@ export async function closeWeekAndGetCarryover(
   carryoverIn: number,
 ): Promise<number> {
   const weekEnd = addDaysToIsoDate(weekStart, 6);
-  const spent = await getWeekSpentFromDb(supabase, weekStart, weekEnd);
+  const spent = await getWeekSpentFromLedger(supabase, weekStart, weekEnd);
   const summary = buildWeekSummary({ weekStart, weekEnd, carryoverIn, spent });
 
   await saveWeekSummary(supabase, summary);

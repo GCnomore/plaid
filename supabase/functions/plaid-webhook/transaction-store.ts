@@ -1,10 +1,19 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import {
+  finalizePendingLedger,
+  getWeekSpentFromLedger,
+  insertPendingLedger,
+  insertPostedLedgerNew,
+  markLedgerRemoved,
+  promoteLedgerToPosted,
+  updatePendingLedgerAmount,
+} from './budget-ledger.ts';
+import {
+  buildBudgetSummaryFromSpent,
   displayMerchant,
   isExcluded,
   type PlaidTransaction,
-  WEEKLY_BUDGET,
   type BudgetSummary,
   type WeekDateRange,
 } from './budget.ts';
@@ -56,14 +65,6 @@ function rowToTx(row: BudgetTransactionRow): PlaidTransaction {
   };
 }
 
-function merchantLabel(tx: PlaidTransaction): string {
-  return displayMerchant(tx).toLowerCase();
-}
-
-function amountsDiffer(a: number, b: number): boolean {
-  return Math.abs(a - b) > 0.001;
-}
-
 async function findRow(
   supabase: SupabaseClient,
   transactionId: string,
@@ -104,6 +105,8 @@ async function markRemoved(
     .eq('transaction_id', transactionId);
 
   if (error) throw new Error(`거래 removed 처리 실패: ${error.message}`);
+
+  await markLedgerRemoved(supabase, transactionId);
 }
 
 async function markSuperseded(
@@ -137,8 +140,55 @@ function buildRow(tx: PlaidTransaction, excluded: boolean): Record<string, unkno
     transaction_date: tx.date,
     pending: tx.pending,
     excluded,
-    counts_in_budget: !excluded && !tx.pending,
+    counts_in_budget: !excluded,
   };
+}
+
+async function notifyForPosted(
+  tx: PlaidTransaction,
+  notify: boolean,
+  ledgerResult: Awaited<ReturnType<typeof finalizePendingLedger>>,
+  prior: BudgetTransactionRow | null,
+): Promise<NotifyRequest | null> {
+  if (!notify) return null;
+
+  if (ledgerResult) {
+    if (ledgerResult.amountChanged || ledgerResult.merchantChanged) {
+      return {
+        tx,
+        kind: 'posted_confirm',
+        priorAmount: ledgerResult.ledger.pending_amount,
+        priorMerchant: displayMerchant({
+          transaction_id: ledgerResult.ledger.budget_key,
+          account_id: '',
+          amount: ledgerResult.ledger.pending_amount,
+          merchant_name: ledgerResult.ledger.merchant_name,
+          name: ledgerResult.ledger.name,
+          date: ledgerResult.ledger.transaction_date,
+          pending: true,
+        }),
+      };
+    }
+    return null;
+  }
+
+  if (prior) {
+    const priorTx = rowToTx(prior);
+    const merchantChanged = displayMerchant(tx).toLowerCase() !==
+      displayMerchant(priorTx).toLowerCase();
+    const amountChanged = Math.abs(tx.amount - prior.amount) > 0.001;
+    if (merchantChanged || amountChanged) {
+      return {
+        tx,
+        kind: 'posted_confirm',
+        priorAmount: prior.amount,
+        priorMerchant: displayMerchant(priorTx),
+      };
+    }
+    return null;
+  }
+
+  return { tx, kind: 'posted_new' };
 }
 
 async function handleAdded(
@@ -164,39 +214,25 @@ async function handleAdded(
       ...buildRow(tx, false),
       notified_at: notify ? new Date().toISOString() : null,
     });
+    await insertPendingLedger(supabase, tx);
     return notify ? { tx, kind: 'pending' } : null;
   }
 
-  // Posted transaction
   let prior: BudgetTransactionRow | null = null;
   if (tx.pending_transaction_id) {
     prior = await markSuperseded(supabase, tx.pending_transaction_id, tx.transaction_id);
   }
 
-  await upsertRow(supabase, {
-    ...buildRow(tx, false),
-    notified_at: null,
-  });
+  const ledgerResult = tx.pending_transaction_id
+    ? await finalizePendingLedger(supabase, tx)
+    : null;
 
-  if (!notify) return null;
-
-  if (prior) {
-    const priorTx = rowToTx(prior);
-    const merchantChanged = merchantLabel(tx) !== merchantLabel(priorTx);
-    const amountChanged = amountsDiffer(tx.amount, prior.amount);
-
-    if (merchantChanged || amountChanged) {
-      return {
-        tx,
-        kind: 'posted_confirm',
-        priorAmount: prior.amount,
-        priorMerchant: displayMerchant(priorTx),
-      };
-    }
-    return null;
+  if (!ledgerResult) {
+    await insertPostedLedgerNew(supabase, tx);
   }
 
-  return { tx, kind: 'posted_new' };
+  await upsertRow(supabase, { ...buildRow(tx, false), notified_at: null });
+  return notifyForPosted(tx, notify, ledgerResult, prior);
 }
 
 async function handleModified(
@@ -213,32 +249,39 @@ async function handleModified(
   }
 
   const wasPending = existing?.pending ?? tx.pending;
-  const priorAmount = existing ? Number(existing.amount) : tx.amount;
-  const priorMerchant = existing
-    ? displayMerchant(rowToTx(existing))
-    : displayMerchant(tx);
+
+  if (tx.pending) {
+    await upsertRow(supabase, {
+      ...buildRow(tx, false),
+      notified_at: existing?.notified_at ?? null,
+    });
+    await updatePendingLedgerAmount(supabase, tx);
+    return null;
+  }
+
+  if (wasPending && !tx.pending) {
+    let prior: BudgetTransactionRow | null = existing;
+    if (tx.pending_transaction_id) {
+      prior = await markSuperseded(supabase, tx.pending_transaction_id, tx.transaction_id) ??
+        existing;
+    }
+
+    const ledgerResult = tx.pending_transaction_id
+      ? await finalizePendingLedger(supabase, tx)
+      : await promoteLedgerToPosted(supabase, tx);
+
+    if (!ledgerResult) {
+      await insertPostedLedgerNew(supabase, tx);
+    }
+
+    await upsertRow(supabase, { ...buildRow(tx, false), notified_at: null });
+    return notifyForPosted(tx, notify, ledgerResult, prior);
+  }
 
   await upsertRow(supabase, {
     ...buildRow(tx, false),
     notified_at: existing?.notified_at ?? null,
   });
-
-  if (!notify) return null;
-
-  if (wasPending && !tx.pending) {
-    const merchantChanged = merchantLabel(tx) !== priorMerchant.toLowerCase();
-    const amountChanged = amountsDiffer(tx.amount, priorAmount);
-    if (merchantChanged || amountChanged) {
-      return {
-        tx,
-        kind: 'posted_confirm',
-        priorAmount,
-        priorMerchant,
-      };
-    }
-    return null;
-  }
-
   return null;
 }
 
@@ -273,20 +316,7 @@ export async function getWeekSpentFromDb(
   monday: string,
   sunday: string,
 ): Promise<number> {
-  const { data, error } = await supabase
-    .from('plaid_budget_transactions')
-    .select('amount')
-    .eq('counts_in_budget', true)
-    .eq('excluded', false)
-    .is('removed_at', null)
-    .is('superseded_by', null)
-    .gte('transaction_date', monday)
-    .lte('transaction_date', sunday)
-    .gt('amount', 0);
-
-  if (error) throw new Error(`주간 지출 조회 실패: ${error.message}`);
-
-  return (data ?? []).reduce((sum, row) => sum + Number(row.amount), 0);
+  return getWeekSpentFromLedger(supabase, monday, sunday);
 }
 
 export async function calculateBudgetSummaryFromDb(
@@ -294,17 +324,8 @@ export async function calculateBudgetSummaryFromDb(
   weekRange: WeekDateRange,
   carryover: number,
 ): Promise<BudgetSummary> {
-  const spent = await getWeekSpentFromDb(supabase, weekRange.monday, weekRange.sunday);
-  const totalBudget = WEEKLY_BUDGET + carryover;
-
-  return {
-    weeklyBudget: WEEKLY_BUDGET,
-    carryover,
-    totalBudget,
-    spent,
-    remaining: totalBudget - spent,
-    weekRange,
-  };
+  const spent = await getWeekSpentFromLedger(supabase, weekRange.monday, weekRange.sunday);
+  return buildBudgetSummaryFromSpent(weekRange, carryover, spent);
 }
 
 export async function ingestSyncSilently(

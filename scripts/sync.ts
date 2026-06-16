@@ -10,13 +10,9 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 import { resolveCarryover } from '../supabase/functions/plaid-webhook/budget-state.ts';
-import { BUDGET_TIMEZONE, getWeekDateRange } from '../supabase/functions/plaid-webhook/budget.ts';
 import { refreshTransactions, syncTransactions } from '../supabase/functions/plaid-webhook/plaid.ts';
-import { sendSlackMessage } from '../supabase/functions/plaid-webhook/slack.ts';
-import {
-  calculateBudgetSummaryFromDb,
-  processSyncUpdates,
-} from '../supabase/functions/plaid-webhook/transaction-store.ts';
+import { sendNotificationBatch } from '../supabase/functions/plaid-webhook/notifications.ts';
+import { processSyncUpdates } from '../supabase/functions/plaid-webhook/transaction-store.ts';
 
 const REFRESH_WAIT_MS = parseInt(Deno.env.get('REFRESH_WAIT_MS') ?? '5000', 10);
 const SYNC_RETRY_COUNT = parseInt(Deno.env.get('SYNC_RETRY_COUNT') ?? '3', 10);
@@ -115,21 +111,17 @@ const notifications = await processSyncUpdates(
 
 console.log(`💾 DB 저장 완료 (알림 대상: ${notifications.length}건)`);
 
-const carryover = await resolveCarryover(supabase);
-
 if (notifications.length > 0 && notify) {
-  const weekRange = getWeekDateRange(BUDGET_TIMEZONE);
-  const budget = await calculateBudgetSummaryFromDb(supabase, weekRange, carryover);
-
-  for (const { tx, kind, priorAmount, priorMerchant } of notifications) {
-    const prior = priorAmount !== undefined && priorMerchant !== undefined
-      ? { amount: priorAmount, merchant: priorMerchant }
-      : undefined;
-    await sendSlackMessage(tx, budget, kind, prior);
+  const sent = await sendNotificationBatch(supabase, notifications);
+  for (const { tx, kind } of notifications) {
     console.log(`📣 Slack [${kind}]: ${tx.merchant_name || tx.name} ${tx.amount}`);
   }
-} else if (notifications.length > 0) {
-  console.log('ℹ️  --notify 없음: Slack 생략');
+  console.log(`📣 Slack ${sent}건 전송`);
+} else {
+  if (notifications.length > 0) {
+    console.log('ℹ️  --notify 없음: Slack 생략');
+  }
+  await resolveCarryover(supabase);
 }
 
 console.log('✅ 완료');

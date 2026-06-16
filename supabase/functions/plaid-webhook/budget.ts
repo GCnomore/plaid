@@ -12,6 +12,11 @@ export const EXCLUSION_KEYWORDS = [
   'frontier',
   'google one',
   'online transfer',
+  'chevron',
+  'oil',
+  'shell',
+  'payroll',
+  'robinhood',
 ];
 
 export interface PlaidTransaction {
@@ -123,6 +128,22 @@ export function getWeekDateRange(timezone: string): WeekDateRange {
   const label = `Mon ${labelFormatter.format(monday)} - Sun ${labelFormatter.format(sunday)}`;
 
   return { monday: monStr, sunday: sunStr, label };
+}
+
+export function buildBudgetSummaryFromSpent(
+  weekRange: WeekDateRange,
+  carryover: number,
+  spent: number,
+): BudgetSummary {
+  const totalBudget = WEEKLY_BUDGET + carryover;
+  return {
+    weeklyBudget: WEEKLY_BUDGET,
+    carryover,
+    totalBudget,
+    spent,
+    remaining: totalBudget - spent,
+    weekRange,
+  };
 }
 
 export function calculateBudgetSummary(

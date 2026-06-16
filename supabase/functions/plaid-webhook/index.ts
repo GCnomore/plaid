@@ -2,13 +2,9 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from '@supabase/supabase-js';
 
 import { resolveCarryover } from './budget-state.ts';
-import { BUDGET_TIMEZONE, getWeekDateRange } from './budget.ts';
 import { syncTransactions } from './plaid.ts';
-import { sendSlackMessage } from './slack.ts';
-import {
-  calculateBudgetSummaryFromDb,
-  processSyncUpdates,
-} from './transaction-store.ts';
+import { sendNotificationBatch } from './notifications.ts';
+import { processSyncUpdates } from './transaction-store.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 
@@ -140,23 +136,16 @@ serve(async (req: Request) => {
     );
 
     if (notifications.length === 0) {
+      await resolveCarryover(db);
       return new Response(JSON.stringify({ ok: true, sent: 0 }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    const carryover = await resolveCarryover(db);
-    const weekRange = getWeekDateRange(BUDGET_TIMEZONE);
-    const budget = await calculateBudgetSummaryFromDb(db, weekRange, carryover);
+    const sent = await sendNotificationBatch(db, notifications);
 
-    let sent = 0;
-    for (const { tx, kind, priorAmount, priorMerchant } of notifications) {
-      const prior = priorAmount !== undefined && priorMerchant !== undefined
-        ? { amount: priorAmount, merchant: priorMerchant }
-        : undefined;
-      await sendSlackMessage(tx, budget, kind, prior);
-      sent++;
+    for (const { tx, kind } of notifications) {
       console.log(`✅ Slack 전송 [${kind}]: ${tx.merchant_name || tx.name} ${tx.amount}`);
     }
 

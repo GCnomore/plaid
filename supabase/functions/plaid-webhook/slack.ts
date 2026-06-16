@@ -65,7 +65,7 @@ export async function sendSlackMessage(
   }
 
   const statusNote = kind === 'pending'
-    ? '_예산에 아직 반영되지 않음 (승인 대기)_'
+    ? '_예산에 반영됨 (승인 대기 — 확정 시 금액 변경만 재알림)_'
     : '';
 
   const blocks: Record<string, unknown>[] = [
