@@ -29,7 +29,7 @@ function deriveOutcome(balance: number): BudgetOutcome {
 export function buildWeekSummary(input: WeekSummaryInput): WeekSummaryRecord {
   const totalBudget = WEEKLY_BUDGET + input.carryoverIn;
   const balance = totalBudget - input.spent;
-  const carryoverOut = Math.max(0, balance);
+  const carryoverOut = balance;
 
   return {
     ...input,

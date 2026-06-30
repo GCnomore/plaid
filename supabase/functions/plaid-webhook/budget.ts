@@ -11,6 +11,7 @@ export const EXCLUSION_KEYWORDS = [
   'cosmic fuel',
   'frontier',
   'google one',
+  'google',
   'online transfer',
   'chevron',
   'oil',
