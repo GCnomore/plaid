@@ -8,8 +8,11 @@ Plaid 거래를 주기적으로 동기화하고, 주간 예산을 추적한 뒤 
 
 - **[시스템 개요](docs/overview.md)**: 전체 아키텍처, 데이터 흐름, 예산 시스템 상세 설명
 - **[배포 가이드](docs/deployment-guide.md)**: Edge Functions 배포, DB 마이그레이션, pg_cron 설정
-- **[타임존 버그 수정](docs/bugfix-timezone.md)**: 2026-07-31 주간 경계 계산 버그 수정 내역
 - **[예산 조정 가이드](scripts/README.md)**: 수동 예산 조정 스크립트 사용법
+
+### 버그 수정 내역
+- **[타임존 버그](docs/bugfix-timezone.md)**: 주간 경계 계산 타임존 버그 (2026-07-31)
+- **[중복 Ledger 버그](docs/bug-duplicate-ledger.md)**: Pending → Posted 중복 계산 버그 (2026-07-31)
 
 ---
 
