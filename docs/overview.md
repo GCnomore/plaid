@@ -860,6 +860,38 @@ SELECT * FROM cron.job_run_details ORDER BY start_time DESC LIMIT 10;
 
 ---
 
+---
+
+## 최근 버그 수정 (2026-07-31)
+
+### 🔴 Critical: 주간 경계 타임존 버그 수정
+
+**문제**: `getWeekDateRange()` 함수가 UTC 기준 요일을 사용하여 LA 타임존 기준 주간 경계가 항상 하루씩 틀어지는 심각한 버그
+
+**영향**:
+- 주간 지출 계산 오류
+- Carryover 계산 오류
+- 모든 Slack 알림의 예산 정보 부정확
+
+**수정 내용** (`supabase/functions/_shared/budget.ts:90-149`):
+- 타임존 기준 요일을 직접 계산 (`Intl.DateTimeFormat` + `weekday` 옵션)
+- `Date.UTC()` 사용으로 날짜 산술 시 타임존 shift 방지
+- UTC 메서드(`getUTCFullYear()`, `setUTCDate()`) 사용
+
+**배포 체크리스트**:
+1. ✅ Edge Functions 재배포 필수:
+   ```bash
+   supabase functions deploy plaid-sync
+   supabase functions deploy plaid-webhook
+   ```
+2. ✅ DB `plaid_sync_state.week_monday` 값 확인 및 수정
+3. ⚠️ Carryover 재계산 권장
+
+상세 내용: [docs/bugfix-timezone.md](./bugfix-timezone.md)
+
+---
+
 **문서 작성일**: 2026-07-31
+**마지막 업데이트**: 2026-07-31 (타임존 버그 수정)
 **대상 독자**: 개발자, 시스템 관리자
-**문서 버전**: 1.0
+**문서 버전**: 1.1
