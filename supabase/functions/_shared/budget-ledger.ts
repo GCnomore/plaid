@@ -85,8 +85,12 @@ export async function insertPostedLedgerNew(
   supabase: SupabaseClient,
   tx: PlaidTransaction,
 ): Promise<void> {
+  // If pending_transaction_id exists, use it as budget_key to overwrite the pending record
+  // This prevents duplicate ledger entries when finalizePendingLedger() fails to find the pending record
+  const budgetKey = tx.pending_transaction_id ?? tx.transaction_id;
+
   await upsertLedger(supabase, {
-    budget_key: tx.transaction_id,
+    budget_key: budgetKey,
     pending_transaction_id: tx.pending_transaction_id ?? null,
     posted_transaction_id: tx.transaction_id,
     amount: tx.amount,
