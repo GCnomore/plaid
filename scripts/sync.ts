@@ -9,10 +9,10 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-import { resolveCarryover } from '../supabase/functions/plaid-webhook/budget-state.ts';
-import { refreshTransactions, syncTransactions } from '../supabase/functions/plaid-webhook/plaid.ts';
-import { sendNotificationBatch } from '../supabase/functions/plaid-webhook/notifications.ts';
-import { processSyncUpdates } from '../supabase/functions/plaid-webhook/transaction-store.ts';
+import { resolveCarryover } from '../supabase/functions/_shared/budget-state.ts';
+import { refreshTransactions, syncTransactions } from '../supabase/functions/_shared/plaid.ts';
+import { sendNotificationBatch } from '../supabase/functions/_shared/notifications.ts';
+import { processSyncUpdates } from '../supabase/functions/_shared/transaction-store.ts';
 
 const REFRESH_WAIT_MS = parseInt(Deno.env.get('REFRESH_WAIT_MS') ?? '5000', 10);
 const SYNC_RETRY_COUNT = parseInt(Deno.env.get('SYNC_RETRY_COUNT') ?? '3', 10);

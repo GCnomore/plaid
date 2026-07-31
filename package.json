@@ -5,6 +5,7 @@
     "sync": "deno run --config scripts/deno.json --env-file=.env --allow-net --allow-env scripts/sync.ts",
     "sync:notify": "deno run --config scripts/deno.json --env-file=.env --allow-net --allow-env scripts/sync.ts --notify",
     "backfill:notify": "deno run --config scripts/deno.json --env-file=.env --allow-net --allow-env scripts/backfill-notify.ts",
-    "resend:ledger-notify": "deno run --config scripts/deno.json --env-file=.env --allow-net --allow-env scripts/resend-ledger-notify.ts"
+    "resend:ledger-notify": "deno run --config scripts/deno.json --env-file=.env --allow-net --allow-env scripts/resend-ledger-notify.ts",
+    "update-budget": "node scripts/update-budget.js"
   }
 }

@@ -1,7 +1,7 @@
 DENO := deno
 DENO_RUN := $(DENO) run --config scripts/deno.json --env-file=.env --allow-net --allow-env
 
-.PHONY: help sync sync-notify backfill-notify resend-ledger-notify
+.PHONY: help sync sync-notify backfill-notify resend-ledger-notify update-budget
 
 help:
 	@echo "Usage:"
@@ -9,6 +9,7 @@ help:
 	@echo "  make sync-notify           refresh + sync → DB 저장 + Slack 알림"
 	@echo "  make backfill-notify       [ONE-TIME] cursor 리셋 + 전체 sync + Slack"
 	@echo "  make resend-ledger-notify  이번 주 ledger 기준 Slack 재전송"
+	@echo "  make update-budget         버젯(이월 금액) 수동 수정"
 
 sync:
 	$(DENO_RUN) scripts/sync.ts
@@ -21,3 +22,6 @@ backfill-notify:
 
 resend-ledger-notify:
 	$(DENO_RUN) scripts/resend-ledger-notify.ts
+
+update-budget:
+	node scripts/update-budget.js

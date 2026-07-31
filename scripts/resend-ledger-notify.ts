@@ -6,11 +6,11 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-import type { BudgetLedgerRow } from '../supabase/functions/plaid-webhook/budget-ledger.ts';
-import { BUDGET_TIMEZONE, displayMerchant, getWeekDateRange } from '../supabase/functions/plaid-webhook/budget.ts';
-import { sendNotificationBatch } from '../supabase/functions/plaid-webhook/notifications.ts';
-import type { NotifyRequest } from '../supabase/functions/plaid-webhook/transaction-store.ts';
-import type { PlaidTransaction } from '../supabase/functions/plaid-webhook/budget.ts';
+import type { BudgetLedgerRow } from '../supabase/functions/_shared/budget-ledger.ts';
+import { BUDGET_TIMEZONE, displayMerchant, getWeekDateRange } from '../supabase/functions/_shared/budget.ts';
+import { sendNotificationBatch } from '../supabase/functions/_shared/notifications.ts';
+import type { NotifyRequest } from '../supabase/functions/_shared/transaction-store.ts';
+import type { PlaidTransaction } from '../supabase/functions/_shared/budget.ts';
 
 const SLACK_DELAY_MS = parseInt(Deno.env.get('SLACK_DELAY_MS') ?? '300', 10);
 
