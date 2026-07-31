@@ -17,7 +17,7 @@ export interface SendNotificationOptions {
 }
 
 export function notificationSpentDelta(n: NotifyRequest): number {
-  if (n.tx.amount <= 0) return 0;
+  // 부호 포함: 음수(입금/adjustment)도 spent delta에 반영
   if (n.kind === 'posted_confirm' && n.priorAmount !== undefined) {
     return n.tx.amount - n.priorAmount;
   }

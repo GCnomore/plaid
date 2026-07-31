@@ -224,13 +224,13 @@ export async function getWeekSpentFromLedger(
   monday: string,
   sunday: string,
 ): Promise<number> {
+  // 부호 포함 합산: 양수=지출, 음수=입금/adjustment → spent 감소
   const { data, error } = await supabase
     .from('plaid_budget_ledger')
     .select('amount')
     .in('status', ['pending', 'posted'])
     .gte('transaction_date', monday)
-    .lte('transaction_date', sunday)
-    .gt('amount', 0);
+    .lte('transaction_date', sunday);
 
   if (error) throw new Error(`ledger 주간 지출 조회 실패: ${error.message}`);
 

@@ -39,6 +39,8 @@ export async function sendSlackMessage(
 
   const carryoverLine = carryover > 0
     ? `Carryover: ${formatAmount(carryover)}`
+    : carryover < 0
+    ? `Carryover: -${formatAmount(carryover)}`
     : 'Carryover: $0.00';
 
   let budgetLine: string;

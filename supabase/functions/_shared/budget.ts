@@ -64,8 +64,9 @@ export function addDaysToIsoDate(isoDate: string, days: number): string {
 }
 
 export function calculateSpent(transactions: PlaidTransaction[]): number {
+  // 부호 포함 합산: 양수=지출, 음수=입금/adjustment → spent 감소
   return transactions
-    .filter((tx) => tx.amount > 0 && !isExcluded(tx))
+    .filter((tx) => !isExcluded(tx))
     .reduce((sum, tx) => sum + tx.amount, 0);
 }
 
@@ -90,43 +91,59 @@ export function getWeekDateRange(timezone: string): WeekDateRange {
   const now = new Date();
 
   // Get the current date parts in the target timezone
-  const formatter = new Intl.DateTimeFormat('en-CA', {
+  const dateFormatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   });
-  const todayStr = formatter.format(now); // 'YYYY-MM-DD'
+  const todayStr = dateFormatter.format(now); // 'YYYY-MM-DD'
 
+  // Get the weekday in the target timezone (CRITICAL: must use timezone-aware weekday)
+  const weekdayFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    weekday: 'long',
+  });
+  const weekdayStr = weekdayFormatter.format(now);
+
+  // Map weekday to days from Monday
+  const weekdayMap: Record<string, number> = {
+    'Monday': 0,
+    'Tuesday': 1,
+    'Wednesday': 2,
+    'Thursday': 3,
+    'Friday': 4,
+    'Saturday': 5,
+    'Sunday': 6,
+  };
+  const daysFromMonday = weekdayMap[weekdayStr];
+
+  // Perform date arithmetic using UTC to avoid timezone shifts
   const [y, m, d] = todayStr.split('-').map(Number);
-  const todayLocal = new Date(y, m - 1, d);
+  const todayDate = new Date(Date.UTC(y, m - 1, d));
 
-  // JS getDay(): 0=Sun, 1=Mon, ..., 6=Sat. We need Mon=0 offset.
-  const dayOfWeek = todayLocal.getDay(); // 0=Sun
-  const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const mondayDate = new Date(todayDate);
+  mondayDate.setUTCDate(todayDate.getUTCDate() - daysFromMonday);
 
-  const monday = new Date(todayLocal);
-  monday.setDate(todayLocal.getDate() - daysFromMonday);
-
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
+  const sundayDate = new Date(mondayDate);
+  sundayDate.setUTCDate(mondayDate.getUTCDate() + 6);
 
   const toIsoDate = (dt: Date): string => {
-    const yy = dt.getFullYear();
-    const mm = String(dt.getMonth() + 1).padStart(2, '0');
-    const dd = String(dt.getDate()).padStart(2, '0');
+    const yy = dt.getUTCFullYear();
+    const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getUTCDate()).padStart(2, '0');
     return `${yy}-${mm}-${dd}`;
   };
 
-  const monStr = toIsoDate(monday);
-  const sunStr = toIsoDate(sunday);
+  const monStr = toIsoDate(mondayDate);
+  const sunStr = toIsoDate(sundayDate);
 
   const labelFormatter = new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',
     timeZone: timezone,
   });
-  const label = `Mon ${labelFormatter.format(monday)} - Sun ${labelFormatter.format(sunday)}`;
+  const label = `Mon ${labelFormatter.format(mondayDate)} - Sun ${labelFormatter.format(sundayDate)}`;
 
   return { monday: monStr, sunday: sunStr, label };
 }
