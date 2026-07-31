@@ -864,7 +864,7 @@ SELECT * FROM cron.job_run_details ORDER BY start_time DESC LIMIT 10;
 
 ## 최근 버그 수정 (2026-07-31)
 
-### 🔴 Critical: 주간 경계 타임존 버그 수정
+### 🔴 Critical #1: 주간 경계 타임존 버그 수정
 
 **문제**: `getWeekDateRange()` 함수가 UTC 기준 요일을 사용하여 LA 타임존 기준 주간 경계가 항상 하루씩 틀어지는 심각한 버그
 
@@ -879,15 +879,37 @@ SELECT * FROM cron.job_run_details ORDER BY start_time DESC LIMIT 10;
 - UTC 메서드(`getUTCFullYear()`, `setUTCDate()`) 사용
 
 **배포 체크리스트**:
-1. ✅ Edge Functions 재배포 필수:
-   ```bash
-   supabase functions deploy plaid-sync
-   supabase functions deploy plaid-webhook
-   ```
+1. ✅ Edge Functions 재배포 필수
 2. ✅ DB `plaid_sync_state.week_monday` 값 확인 및 수정
 3. ⚠️ Carryover 재계산 권장
 
 상세 내용: [docs/bugfix-timezone.md](./bugfix-timezone.md)
+
+---
+
+### 🔴 Critical #2: Pending → Posted 중복 Ledger 버그 수정
+
+**문제**: pending → posted 전환 시 `finalizePendingLedger()` 실패 시 중복 레코드가 생성되어 주간 지출이 중복 계산됨
+
+**영향**:
+- 주간 지출 중복 계산 (예: $10 pending + $12.50 posted = $22.50로 계산)
+- 예산 알림의 지출 금액 부정확
+- 멱등성 위반
+
+**수정 내용**:
+1. `insertPostedLedgerNew()` 수정 (`supabase/functions/_shared/budget-ledger.ts:84-101`):
+   - `pending_transaction_id`가 있으면 이를 `budget_key`로 사용
+   - `upsert`가 자동으로 기존 pending 레코드를 덮어씀
+2. DB UNIQUE 제약조건 추가 (`supabase/migrations/20260731000000_add_unique_posted_pending.sql`):
+   - `pending_transaction_id`에 UNIQUE INDEX 추가 (posted 상태일 때)
+   - DB 레벨 안전장치
+
+**배포 체크리스트**:
+1. ✅ Edge Functions 재배포 필수
+2. ✅ DB 마이그레이션 실행: `supabase db push`
+3. ✅ 중복 레코드 검증 쿼리 실행 (상세 문서 참고)
+
+상세 내용: [docs/bug-duplicate-ledger.md](./bug-duplicate-ledger.md)
 
 ---
 
